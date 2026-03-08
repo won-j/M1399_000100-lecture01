@@ -1,0 +1,14 @@
+project:
+  type: website
+  output-dir: _site
+  resources:
+    - README.md
+    - install.R
+
+filters:
+  - collapse-output
+
+format:
+  html:
+    embed-resources: true
+  ipynb: default
