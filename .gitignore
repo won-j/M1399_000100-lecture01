@@ -3,5 +3,5 @@ pwscf*
 
 /.quarto/
 **/*.quarto_ipynb
-_site/
-_extensions/
+/_site/
+/_extensions/
