@@ -1,3 +1,7 @@
+# 0. R 커널을 주피터 노트북에서 인식하도록 설정
+install.packages("IRkernel")
+IRkernel::installspec(user = FALSE)
+
 # 1. 기초 패키지 및 CRAN 패키지 설치
 install.packages(c("remotes", "Rcpp", "lobstr", "gmp", "float", "ggplot2", "dplyr"))
 
