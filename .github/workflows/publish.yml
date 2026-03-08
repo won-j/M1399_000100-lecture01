@@ -27,7 +27,7 @@ jobs:
 
       - name: Install R Packages
         env:
-          GITHUB_PAT: ${{ secrets.MY_GITHUB_PAT }}
+          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
         run: |
           install.packages(c("remotes", "Rcpp", "lobstr", "gmp", "float", "knitr", "rmarkdown"))
           remotes::install_github("hadley/pryr")
