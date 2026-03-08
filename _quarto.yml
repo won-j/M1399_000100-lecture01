@@ -4,6 +4,7 @@ project:
   resources:
     - README.md
     - install.R
+    - runtime.txt
 
 filters:
   - collapse-output
