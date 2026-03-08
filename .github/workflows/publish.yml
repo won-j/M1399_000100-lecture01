@@ -26,6 +26,9 @@ jobs:
         uses: quarto-dev/quarto-actions/setup@v2
 
       - name: Install R Packages
+        env:
+          GITHUB_PAT: ${{ secrets.MY_GITHUB_PAT }}
+        shell: Rscript {0}
         run: |
           install.packages(c("remotes", "Rcpp", "lobstr", "gmp", "float", "knitr", "rmarkdown"))
           remotes::install_github("hadley/pryr")
