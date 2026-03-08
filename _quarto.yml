@@ -5,6 +5,7 @@ project:
     - README.md
     - install.R
     - runtime.txt
+    - images/
 
 filters:
   - collapse-output
