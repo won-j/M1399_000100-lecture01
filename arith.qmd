@@ -102,9 +102,11 @@ sapply(128:255, intToUtf8)
 
 * [UTF-8](https://en.wikipedia.org/wiki/UTF-8) is the current dominant character encoding on internet.  
 
+<!--
 <img src="images/unicode.png" width="800" align="center"/>
 
 Source: [Google Blog](https://googleblog.blogspot.com/2012/02/unicode-over-60-percent-of-web.html)
+-->
 
 ```{r}
 #| vscode: {languageId: r}
@@ -189,9 +191,32 @@ In most other languages,
 |Int64	|-9223372036854775808	|9223372036854775807|
 |Int128	|-170141183460469231731687303715884105728	|170141183460469231731687303715884105727|
 
-### Overflow and underflow for integer arithmetic
+### Integer arithmetic
 
-R reports `NA` for integer overflow and underflow.  
+* Addition/subtraction: for unsigned integers, conducted according to usual binary arithmetic (carry/borrow); for signed integers, two's complement form is used and addition is carried out (carry only).
+```
+    57    00111001
+-   35    11011101
+-------------------
+    22    00010110
+```
+
+* Multiplication: for unsigned integers, left shift and additions; for signed integers, [Booth's algorithm](https://en.wikipedia.org/wiki/Booth%27s_multiplication_algorithm).
+
+* Division: right shift and subtractions
+
+### Overflow and underflow in integer arithmetic
+
+* `unit8` outputs the result according to modular arithmetic. So does C and Julia.
+
+```{r}
+#| vscode: {languageId: r}
+#| output-fold: true
+uint8::as.uint8(255) + uint8::as.uint8(1) # overflow
+uint8::as.uint8(0) - uint8::as.uint8(1)  # underflow
+```
+
+* R reports `NA` for integer overflow and underflow.  
 
 ```{r}
 #| vscode: {languageId: r}
@@ -214,16 +239,7 @@ as.integer(big)
 .Machine$integer.max + 1L
 ```
 
-`unit8` outputs the result according to modular arithmetic. So does C and Julia.
-
-```{r}
-#| vscode: {languageId: r}
-#| output-fold: true
-uint8::as.uint8(255) + uint8::as.uint8(1)
-uint8::as.uint8(250) + uint8::as.uint8(15)
-```
-
-Package `gmp` supports big integers with arbitrary precision.
+* Package `gmp` supports big integers with arbitrary precision.
 
 ```{r}
 #| vscode: {languageId: r}
@@ -235,6 +251,9 @@ gmp::as.bigz(.Machine$integer.max ) + gmp::as.bigz(1L)
 
 Floating-point number system is a computer model for the real line $\mathbb{R}$.
 
+* Squeezing infinitely many real numbers into a finite number of bits requires an approximate representation. 
+
+
 * Most computer systems adopt the [IEEE 754 standard](https://en.wikipedia.org/wiki/IEEE_floating_point), established in 1985, for floating-point arithmetics.  
 For the history, see an [interview with William Kahan](http://www.cs.berkeley.edu/~wkahan/ieee754status/754story.html).
 
@@ -245,12 +264,15 @@ $$
 Humans use the _base_ $b=10$ and _digits_ $d_i=0, 1, \dotsc, 9$.\
     In computer, the base is $b=2$ and the digits $d_i$ are 0 or 1.
 
+* The term *floating-point number* refers to a real number that can be exactly represented in the format under discussion. 
+    - They *represent* the real numbers closest to them (see rounding).
+
 * **Normalized** vs **denormalized** numbers. For example, decimal number 18 is
 $$ +1.0010 \times 2^4 \quad (\text{normalized})$$
 or, equivalently,
 $$ +0.1001 \times 2^5 \quad (\text{denormalized}).$$
 
-* In the floating-number system, computer stores 
+* In the floating-point number system, computer stores 
     - sign bit  
     - the _fraction_ (or _mantissa_, or _significand_) of the **normalized** representation
     - the actual exponent _plus_ a bias
@@ -383,6 +405,8 @@ pryr::bits(-5)   # -5 in double precision
 
 ### Special floating-point numbers
 
+#### Infinity
+
 - Exponent $e_{\max}+1$ plus a zero mantissa means $\pm \infty$.
 
 ```{r}
@@ -391,6 +415,8 @@ pryr::bits(-5)   # -5 in double precision
 pryr::bits(Inf)    # Inf in double precision
 pryr::bits(-Inf)   # -Inf in double precision
 ```
+
+#### Not a Number
 
 - Exponent $e_{\max}+1$ plus a nonzero mantissa means `NaN`. `NaN` could be produced from `0 / 0`, `0 * Inf`, ...  
 
@@ -403,6 +429,8 @@ pryr::bits(0 / 0)  # NaN
 pryr::bits(0 * Inf) # NaN
 ```
 
+#### Exact Zero
+
 - Exponent $e_{\min}-1$ with a zero mantissa represents the real number 0 ("exact zero").  
     + Why do we need an exact zero?
 
@@ -411,6 +439,8 @@ pryr::bits(0 * Inf) # NaN
 #| output-fold: true
 pryr::bits(0.0)  # 0 in double precision 
 ```
+
+#### Denormalized Numbers
 
 - Exponent $e_{\min}-1$ with a nonzero mantissa are for numbers less than $b^{e_{\min}}$.  
     Numbers are _denormalized_ in the range $(0,b^{e_{\min}})$ -- **gradual underflow**. 
@@ -426,10 +456,27 @@ pryr::bits(float32bin(2^(-126)))
 pryr::bits(float32bin(2^(-149)))
 ```
 
+- Without gradual underflow, it may happen `x - y == 0` even though `x != y`.
+
+```{r}
+#| output-fold: true
+x <- float::fl(1.234567e-38)  # close to single precision limit
+y <- float::fl(1.234566e-38)
+pryr::bits(float32bin(as.double(x)))
+pryr::bits(float32bin(as.double(y)))  # x != y
+pryr::bits(float32bin(as.double(x-y))) # x - y == 0 if normalized
+```
+
+
 ### Rounding
+
+* Given any fixed number of bits, most calculations with real numbers will produce quantities that cannot be exactly represented using that many bits. 
+
+* Therefore, the result of a floating-point calculation must often be rounded in order to fit back into its finite representation. 
 
 * Rounding is necessary whenever a number has more than $p$ significand bits. Most computer systems use the default IEEE 754 _round to nearest, ties to even_ mode: 
 
+<!--
 * *Round to nearest*: for example, the number 1/10 cannot be represented accurately as a (binary) floating point number:
 $$ 0.1 = 1.10011001\dotsc_2 \times 2^{-4} $$
 
@@ -458,6 +505,7 @@ The midway between these two numbers is
 Hence $0.1_{10}$ is closer to `1.1001 1001 1001 1001 1001 101`.
 
 * *Ties to even*: if the number falls midway, it is rounded to the nearest value with an even least significant digit.
+-->
 
 * For example, consider the case that the precision is 4 binary digits
 
@@ -572,9 +620,13 @@ pryr::bits(1 - (2^(-54) + 2^(-106)))
 .Machine
 ```
 
-### Floating point arithmetic
+## Floating point arithmetic
 
-The IEEE 754 standard guarantees that the arithmetic operations involving floating point numbers is so that the operation result in the floating point representation of the exact arithmetric of the involved floating point numbers. For example, suppose $x$ and $y$ are two exact real numbers. Let $[x]$ and $[y]$ be their floating point representation, after the appropriate rounding. Then, the addition of these two numbers is computed like the following.
+The IEEE 754 standard requires that the result of addition, subtraction, multiplication, division, square root, remainder, and conversion between integer and floating must be computed exactly then rounded to the nearest floating-point number (using round to even).
+
+<!-- The IEEE 754 standard guarantees that the arithmetic operations involving floating point numbers is so that the operation result in the floating point representation of the exact arithmetric of the involved floating point numbers. -->
+
+For example, suppose $x$ and $y$ are two exact real numbers. Let $[x]$ and $[y]$ be their floating point representation, after the appropriate rounding. Then, the addition of these two numbers is computed like the following.
 $$
 \begin{split}
     z &= [x] + [y] \quad \text{(exact arithmetric)}
@@ -583,19 +635,50 @@ $$
 \end{split}
 $$
 
+<!--
+#### Addition/subtraction
+
+1. Alignment: the exponents are compared and the fraction of the number having smaller expoenent is shifted right by a number of digits equal to the difference between the exponents.
+
+2. Addition or subtraction of fractions takes place with the usual method.
+
+3. The larger of the two exponents is taken as the resulting exponent.
+
+4. Normalization: execute left shifts and exponents decreases until the leading digit is nonzero. Verify over/underflow.
+
+5. Check the precision of the fraction. If over-precision, round it.
+-->
+
+
 ### Overflow and underflow of floating-point number
 
 * For double precision, the range is $\pm 10^{\pm 308}$. In most situations, underflow (magnitude of result is less than $10^{-308}$) is preferred over overflow (magnitude of result is larger than $10^{+308}$). Overflow produces $\pm \inf$. Underflow yields zeros or denormalized numbers. 
 
-* E.g., the logit link function is
+```{r}
+#| output-fold: true
+1e300 * 1e300
+1e-300 * 1e-300
+```
+
+* More relevant examples
+
+```{r}
+#| output-fold: true
+log(exp(709)) 
+log(exp(710)) 
+log(exp(-745)) 
+log(exp(-746)) 
+```
+
+* The logit link function is
 $$p = \frac{\exp (x^T \beta)}{1 + \exp (x^T \beta)} = \frac{1}{1+\exp(- x^T \beta)}.$$
 The former expression can easily lead to `Inf / Inf = NaN`, while the latter expression leads to gradual underflow.
 
 * `.Machine$double.xmax` and `.Machine$double.xmin` functions gives largest and smallest _non-subnormal_ number represented by the given floating point type.
 
-## Catastrophic cancellation
+### Lost significant digits
 
-* **Scenario 1**: Addition or subtraction of two numbers of widely different magnitudes: $a+b$ or $a-b$ where $a \gg b$ or $a \ll b$. We lose the precision in the number of smaller magnitude. Consider 
+* Addition or subtraction of two numbers of widely different magnitudes: $a+b$ or $a-b$ where $a \gg b$ or $a \ll b$. We lose the precision in the number of smaller magnitude. Consider 
 $$\begin{eqnarray*}
     a &=& x.xxx ... \times 2^{30} \\  
     b &=& y.yyy... \times 2^{-30}
@@ -605,14 +688,15 @@ What happens when computer calculates $a+b$? We get $a+b=a$!
 ```{r}
 #| vscode: {languageId: r}
 #| output-fold: true
-(a <- 2.0^30)
-(b <- 2.0^-30)
+c(a <- 2.0^30, b <- 2.0^-30)
 (a + b == a)
 pryr::bits(a)
 pryr::bits(a + b)
 ```
 
-Analysis: suppose we want to compute $x + y$, $x, y > 0$. Let the relative error of $x$ and $y$ be
+#### Analysis
+
+Suppose we want to compute $x + y$, $x, y > 0$. Let the relative error of $x$ and $y$ be
 $$
 \delta_x = \frac{[x] - x}{x},
 \quad
@@ -643,6 +727,33 @@ $$
 $$
 approximately.
 
+### Catastrophic cancellation
+
+* Subtraction of two nearly equal numbers eliminates *all* significant digits.
+
+* Occurs when the operands of subtraction are subject to rounding errors.
+
+* Consider the quadratic discriminant formula $b^2 - 4ac$. Suppose decimal floating-point numbers with $p=3$. 
+    -   $b=3.34$, $a=1.22$, $c=2.28$; $b^2 - 4ac = 0.0292$ (exact)
+    -   $b^2 = 11.2$ (rounded), $4ac = 11.1$ (rounded); $b^2 - 4ac = 0.1$!
+
+* The subtraction did not introduce any error but harmed by the errors introduced in the earlier multiplications.
+
+* Another example: upper tail probabiilty of standard normal
+```{r}
+#| output-fold: true
+pnorm(1.96, lower.tail=FALSE)
+1 - pnorm(1.96)
+pnorm(10, lower.tail=FALSE)
+1 - pnorm(10)
+```
+So $\Pr(E^c) \neq 1 - \Pr(E)$. Why?
+```{r}
+#| output-fold: true
+pnorm(10)
+```
+
+<!--
 * **Scenario 2**: Subtraction of two nearly equal numbers eliminates significant digits.  $a-b$ where $a \approx b$. Consider 
 $$\begin{eqnarray*}
     a &=& x.xxxxxxxxxx1ssss  \\
@@ -666,8 +777,11 @@ print(1/2^23)
 
 options(digits=olddigits)
 ```
+-->
 
-Analysis: Let
+#### Analysis
+
+Let
 $$
 [x] = 1 + \sum_{i=1}^{p-2}\frac{d_{i+1}}{2^i} + \frac{1}{2^{p-1}},
 \quad
@@ -685,26 +799,32 @@ $$
 $$
 is unbounded -- no guarantee of any significant digit!
 
-* Implications for numerical computation
-    - Rule 1: add small numbers together before adding larger ones  
-    - Rule 2: add numbers of like magnitude together (paring). When all numbers are of same sign and similar magnitude, add in pairs so each stage the summands are of similar magnitude  
-    - Rule 3: avoid substraction of two numbers that are nearly equal
-        + Example: in solving quadratic equation $ax^2 + bx + c = 0$ with $b > 0$ and $b^2 - 4ac > 0$, the roots are
-        $$
+### Implications for numerical computation
+
+- Rule 1: add small numbers together before adding larger ones  
+
+- Rule 2: add numbers of like magnitude together (paring). When all numbers are of same sign and similar magnitude, add in pairs so each stage the summands are of similar magnitude  
+
+- Rule 3: avoid substraction of two numbers that are nearly equal
+    + Example: in solving quadratic equation $ax^2 + bx + c = 0$ with $b > 0$ and $b^2 - 4ac > 0$, the roots are
+    $$
             x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
             .
-        $$
-        If $b \approx \sqrt{b^2 - 4ac}$, then a scenario 2 occurs. A resolution is to compute only one root $x_1 = \frac{-b - \sqrt{b^2 - 4ac}}{2a}$ by the formula, and find the other root $x_2$ using the relation $x_1x_2 = c/a$.
+    $$
+    If $b \approx \sqrt{b^2 - 4ac}$, then a catastrophic cancellation occurs. A resolution is to compute only one root $x_1 = \frac{-b - \sqrt{b^2 - 4ac}}{2a}$ by the formula, and find the other root $x_2$ using the relation $x_1x_2 = c/a$.
 
 ### Algebraic laws
 
-Floating-point numbers may violate many algebraic laws we are familiar with, such associative and distributive laws. See the example in the Machine Epsilon section and HW1.
+Floating-point numbers may violate many algebraic laws we are familiar with, such as associative and distributive laws, as seen in the denormalization, machine epsilon, and floating-point arithmetic sections.
 
 ## Further readings
+
+* Chapter 2, [Statistical Computing](https://books.google.co.kr/books/about/Statistical_Computing.html?id=i3uCDwAAQBAJ&redir_esc=y) by Kennedy and Gentle (1980).
+
+* [What every computer scientist should know about floating-point arithmetic](https://www.itu.dk/~sestoft/bachelor/IEEE754_article.pdf) by David Goldberg (1991).
 
 * Section II.2, [Computational Statistics](https://link.springer.com/book/10.1007%2F978-0-387-98144-4) by James Gentle (2009).
 
 * Sections 1.5 and 2.2, [Applied Numerical Linear Algebra](https://doi.org/10.1137/1.9781611971446) by James W. Demmel (1997).
 
-* [What every computer scientist should know about floating-point arithmetic](https://www.itu.dk/~sestoft/bachelor/IEEE754_article.pdf) by David Goldberg (1991).
-
+* [Stat 3701 Lecture Notes](https://www.stat.umn.edu/geyer/3701/notes/arithmetic.html) by Charles J. Geyer (2020).
