@@ -3,6 +3,7 @@ title: 'Lecture 1: Computer Arithmetic'
 author: Joong-Ho Won
 institution: Seoul National University
 date: today
+date-format: "MMMM YYYY"
 format:
   html:
     toc: true
